@@ -1,0 +1,1970 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duelo de Insetos e Plantas</title>
+    
+    <style>
+        /* --- GERAL E FONTES --- */
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a1a; /* Fundo escuro */
+            color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 20px;
+        }
+
+        /* --- TABULEIRO PRINCIPAL --- */
+        #gameBody {
+            width: 1100px;
+            max-width: 95%;
+            height: 750px;
+            background-color: #1f363c; /* Cor de campo padrão (verde escuro/azul) */
+            border: 8px solid #3d9970;
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.7);
+            position: relative;
+            display: grid;
+            grid-template-rows: 40px 140px 140px 140px 140px 100px; 
+            grid-template-columns: 100px repeat(5, 1fr) 100px; /* PV/Campo | 5 Slots | Deck/Cemitério */
+            gap: 5px;
+            padding: 15px;
+            box-sizing: border-box;
+            transition: background-color 1s ease, border-color 1s ease;
+        }
+
+        /* Cores de Fundo do Campo (Field Spells) */
+        .field-fire { background-color: #5c0f0f !important; border-color: #cc0000 !important; }
+        .field-water { background-color: #0b2947 !important; border-color: #3a7bd5 !important; }
+        .field-earth { background-color: #4a3e2e !important; border-color: #9c6e3b !important; }
+        .field-wind { background-color: #2e4d58 !important; border-color: #64b5f6 !important; }
+        
+        /* --- LAYOUT GRID ZONES --- */
+        #enemyInfo { grid-area: 1 / 1 / 2 / 8; display: flex; justify-content: space-between; align-items: center; padding: 0 15px; background: rgba(0, 0, 0, 0.4); border-radius: 8px; }
+        #playerInfo { grid-area: 6 / 1 / 7 / 8; display: flex; justify-content: space-between; align-items: center; padding: 0 15px; background: rgba(0, 0, 0, 0.4); border-radius: 8px; }
+        
+        /* Linhas de Slots */
+        .row-enemy-m { grid-row: 2; grid-column: 2 / 7; display: flex; justify-content: space-around; }
+        .row-enemy-s { grid-row: 3; grid-column: 2 / 7; display: flex; justify-content: space-around; }
+        .row-player-s { grid-row: 4; grid-column: 2 / 7; display: flex; justify-content: space-around; }
+        .row-player-m { grid-row: 5; grid-column: 2 / 7; display: flex; justify-content: space-around; }
+
+        /* Slots Especiais Laterais */
+        #e-field-zone { grid-row: 2; grid-column: 1; }
+        #e-deck-zone { grid-row: 2 / 4; grid-column: 7; display: flex; flex-direction: column; justify-content: space-around; align-items: center; }
+        
+        #z-field-zone { grid-row: 5; grid-column: 1; }
+        #z-deck-zone { grid-row: 4 / 6; grid-column: 7; display: flex; flex-direction: column; justify-content: space-around; align-items: center; }
+
+        /* --- QUADRANTES (SLOTS) --- */
+        .quadrante {
+            width: 90px;
+            height: 130px;
+            border: 3px solid #66bb6a; /* Borda padrão do jogador */
+            background-color: rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+            color: rgba(255, 255, 255, 0.4);
+            position: relative;
+            transition: border-color 0.2s, background-color 0.2s;
+            box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5);
+        }
+        .quadrante:hover {
+            background-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .quadrante[data-slot^="e-"] {
+            border-color: #ef5350; /* Borda inimiga (Vermelho) */
+            transform: rotate(180deg); /* Vira as zonas inimigas */
+        }
+        
+        .quadrante[data-slot^="e-s-"], .quadrante[data-slot^="e-m-"] {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        /* Ícones dos Slots */
+        .quadrante[data-slot^="p-s-"]::before, .quadrante[data-slot^="e-s-"]::before { content: 'MONSTRO'; font-size: 10px; position: absolute; top: 5px; }
+        .quadrante[data-slot^="p-m-"]::before, .quadrante[data-slot^="e-m-"]::before { content: 'MAGIA'; font-size: 10px; position: absolute; top: 5px; }
+        .quadrante[data-slot*="field"]::before { content: 'CAMPO'; font-size: 10px; position: absolute; top: 5px; }
+
+        /* Posição de Defesa (Rotação e visual) */
+        .quadrante[data-position="DEF"] .card {
+            transform: rotate(90deg);
+        }
+        
+        /* Slots Vazios */
+        .quadrante:empty {
+             background-color: rgba(255, 255, 255, 0.08);
+        }
+        
+        /* --- ESTILOS DE CARTA --- */
+        .card {
+            width: 95%;
+            height: 95%;
+            background-size: cover;
+            background-position: center;
+            background-color: #6c543f; /* Cor de fallback (se a imagem falhar) */
+            border-radius: 6px;
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.7);
+        }
+        
+        /* Estado de Seleção / Alvo */
+        .selected-card {
+            border: 3px solid gold !important;
+            box-shadow: 0 0 15px gold, inset 0 0 15px gold;
+        }
+
+        /* Overlay de Stats do Monstro */
+        .card-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding: 4px 0;
+            background-color: rgba(0, 0, 0, 0.95);
+            color: white;
+            text-align: center;
+            font-size: 0.7em;
+            font-weight: bold;
+            border-bottom-left-radius: 6px;
+            border-bottom-right-radius: 6px;
+        }
+
+        /* ---------------------------------------------------------------- */
+        /* --- MÃO DO JOGADOR (AJUSTADO PARA VISUAL VERTICAL ABAIXO) --- */
+        /* ---------------------------------------------------------------- */
+        #maoJogador {
+            width: 1100px;
+            max-width: 95%;
+            height: 180px; /* Mais espaço para as cartas */
+            display: flex;
+            justify-content: center;
+            gap: 15px; 
+            margin-top: 15px; /* Distância do gameBody */
+            padding: 10px;
+            box-sizing: border-box;
+            background: #333; /* Fundo mais escuro para a área da mão */
+            border-radius: 10px;
+            border: 2px solid #66bb6a;
+        }
+        #maoJogador .card {
+            width: 100px; /* Aumenta a largura */
+            height: 145px; /* Altura padrão de carta */
+            border: 2px solid #aaa;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.6);
+            cursor: pointer; 
+            transition: transform 0.3s ease, z-index 0.3s, box-shadow 0.3s;
+            /* Garante que o visual seja vertical */
+            transform: none !important; 
+        }
+        #maoJogador .card:hover {
+            transform: scale(1.1) translateY(-15px); /* Efeito de hover */
+            z-index: 50;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.9);
+        }
+        
+        /* --- INFO HOVER (Descrição da Carta) --- */
+        .card-info-hover {
+            position: fixed; 
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(20, 20, 20, 0.98);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            width: 300px;
+            max-width: 90vw;
+            z-index: 1000;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 0.9em;
+            line-height: 1.4;
+            text-align: left;
+            border: 2px solid gold;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.8);
+        }
+        .card:hover .card-info-hover {
+            opacity: 1;
+        }
+
+        /* --- MENU DE AÇÃO (Campo e Mão) --- */
+        .card-action-menu {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #222;
+            border: 1px solid #ddd;
+            padding: 8px;
+            border-radius: 8px;
+            z-index: 99;
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            min-width: 180px;
+        }
+        /* Menu de Mão (posicionado abaixo da carta, na mão) */
+        #maoJogador .card .card-action-menu {
+            position: absolute;
+            top: 100%;
+            bottom: unset;
+        }
+
+        .card-action-menu.visible { display: flex; }
+        .card-action-menu button {
+            background-color: #444;
+            color: white;
+            border: none;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background-color 0.2s;
+        }
+        .card-action-menu button:hover:not(:disabled) { background-color: #666; }
+        .card-action-menu button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* --- EFEITOS DE STATUS E CONTROLES --- */
+        .status-box {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-size: 1.1em;
+        }
+        #turnStatus {
+            font-weight: bold;
+            padding: 8px 15px;
+            border-radius: 20px;
+            background-color: #333;
+            transition: background-color 0.5s;
+        }
+        .my-turn { background-color: #4CAF50 !important; color: white; }
+        .enemy-turn { background-color: #f44336 !important; color: white; }
+
+        #endTurnBtn {
+            padding: 10px 20px;
+            background-color: #1e88e5;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+        #endTurnBtn:hover:not(:disabled) { background-color: #0d47a1; }
+        #endTurnBtn:disabled { background-color: #555; cursor: not-allowed; }
+
+        /* Alerta de Jogo */
+        #gameAlert {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(255, 255, 255, 0.95);
+            color: black;
+            padding: 25px 50px;
+            border-radius: 15px;
+            font-size: 1.8em;
+            font-weight: bold;
+            z-index: 10000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+            text-align: center;
+            box-shadow: 0 0 20px rgba(255, 255, 0, 0.8);
+        }
+        #gameAlert.visible {
+            opacity: 1;
+        }
+        
+        /* Deck/Cemitério Visual */
+        #z-deck, #e-deck {
+            background-color: #212121;
+            /* Se 'fundo.png' estiver na raiz, o caminho abaixo é o correto: */
+            background-image: url('fundo.png'); 
+            background-size: cover;
+            background-position: center;
+            border: 3px solid #fbc02d;
+            position: relative;
+        }
+        #deckCount {
+            position: absolute;
+            bottom: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-size: 0.8em;
+        }
+        #e-cemetery, #z-cemetery {
+            font-size: 1.1em;
+            font-weight: bold;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="gameBody">
+        
+        <div id="gameAlert">Ação de Jogo!</div>
+        
+        <div id="initialPrompt" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); padding: 20px; border-radius: 10px; z-index: 5000; text-align: center; border: 2px solid white;">
+            <p style="font-size: 1.5em; color: yellow;">
+                APERTE **P** OU DÊ **DOIS CLIQUES/TOQUES** NO BOTÃO ABAIXO PARA COMEÇAR!
+            </p>
+        </div>
+
+        <div id="enemyInfo">
+            <div class="status-box">
+                PV: <span id="pvEnemyCount">8000</span>
+            </div>
+            <div class="status-box">
+                Mana: <span id="manaEnemyCount">0</span>
+            </div>
+            <div class="status-box">
+                Deck: <span id="deckEnemyCount">40</span>
+            </div>
+        </div>
+
+        <div id="e-field-zone" class="quadrante" data-slot="e-field"></div>
+        <div class="row-enemy-m">
+            <div class="quadrante" data-slot="e-m-1"></div>
+            <div class="quadrante" data-slot="e-m-2"></div>
+            <div class="quadrante" data-slot="e-m-3"></div>
+            <div class="quadrante" data-slot="e-m-4"></div>
+            <div class="quadrante" data-slot="e-m-5"></div>
+        </div>
+        
+        <div class="row-enemy-s">
+            <div class="quadrante" data-slot="e-s-1"></div>
+            <div class="quadrante" data-slot="e-s-2"></div>
+            <div class="quadrante" data-slot="e-s-3"></div>
+            <div class="quadrante" data-slot="e-s-4"></div>
+            <div class="quadrante" data-slot="e-s-5"></div>
+        </div>
+        
+        <div class="row-player-s">
+            <div class="quadrante" data-slot="p-s-1"></div>
+            <div class="quadrante" data-slot="p-s-2"></div>
+            <div class="quadrante" data-slot="p-s-3"></div>
+            <div class="quadrante" data-slot="p-s-4"></div>
+            <div class="quadrante" data-slot="p-s-5"></div>
+        </div>
+
+        <div id="z-field-zone" class="quadrante" data-slot="z-field"></div>
+        <div class="row-player-m">
+            <div class="quadrante" data-slot="p-m-1"></div>
+            <div class="quadrante" data-slot="p-m-2"></div>
+            <div class="quadrante" data-slot="p-m-3"></div>
+            <div class="quadrante" data-slot="p-m-4"></div>
+            <div class="quadrante" data-slot="p-m-5"></div>
+        </div>
+
+        <div id="e-deck-zone">
+            <div id="e-cemetery">⚰️ 0</div>
+            <div id="e-deck" class="quadrante"></div>
+        </div>
+
+        <div id="z-deck-zone">
+            <div id="z-deck" class="quadrante"></div>
+            <div id="z-cemetery">⚰️ 0</div>
+        </div>
+        
+        <div id="playerInfo">
+            <div class="status-box">
+                <button id="endTurnBtn" onclick="turnoAtual === 0 ? startGame() : passarTurno()">Iniciar Jogo (P)</button>
+            </div>
+            <div class="status-box">
+                Turno: <span id="turnCount">0</span> | <span id="turnStatus">Aguardando Início</span>
+            </div>
+            <div class="status-box">
+                Mana: <span id="manaCount">0</span>
+            </div>
+            <div class="status-box">
+                PV: <span id="pvCount">8000</span>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="maoJogador">
+        </div>
+
+    <script>
+        // ----------------------- DADOS DAS CARTAS -----------------------
+        const cardData = {
+            // MONSTROS (9 Cartas)
+            "AlfaceJusticeiro.png": { atk: 1000, def: 1000, cost: 3, type: "monster", subtype: "Planta", effect: "Genérico. Ataca usando o seu DEF, mesmo em Posição de ATK. Se destruído em batalha, destrói o monstro oponente também." },
+            "AntWar.png": { atk: 1200, def: 800, cost: 2, type: "monster", subtype: "Inseto", effect: "Ao ser invocado, Insetos no campo ganham +100 ATK permanentemente." },
+            "ArqueiraMestre.png": { atk: 1500, def: 1000, cost: 4, type: "monster", subtype: "Inseto", effect: "Pode atacar o oponente diretamente se houver 3 ou mais Plantas no campo (incluindo o inimigo)." },
+            "BarataDomestica.png": { atk: 500, def: 500, cost: 1, type: "monster", subtype: "Inseto", effect: "Genérico. Invocação não custa Mana se o PV for menor que 4000." },
+            "ChuchuVilao.png": { atk: 2500, def: 2000, cost: 6, type: "monster", subtype: "Planta", effect: "Requer 1 tributo (Monstro Planta). Se invocado por Tributo, destrói 1 Magia/Campo inimiga virada para cima." },
+            "MiniBrocolis.png": { atk: 600, def: 600, cost: 1, type: "monster", subtype: "Planta", effect: "Quando destrói um monstro em batalha, seu controlador ganha 300 PV." },
+            "RainhadasFormigas.png": { atk: 2500, def: 2500, cost: 6, type: "monster", subtype: "Inseto", effect: "Ao ser Invocado, Insetos no campo (incluindo este) ganham +300 ATK permanentemente. (Efeito Global)" },
+            "BarataGuerreira.png": { atk: 800, def: 700, cost: 2, type: "monster", subtype: "Inseto", effect: "Genérico. Quando atacado por um monstro de ATK maior, reduz o ATK do atacante em 500 durante o cálculo de dano." },
+            "GafanhotoLamina.png": { atk: 1700, def: 1100, cost: 4, type: "monster", subtype: "Inseto", effect: "Quando destrói um monstro em batalha, inflige 500 de dano direto ao PV do oponente." },
+            
+            // MAGIAS (6 Cartas)
+            "CasaVazia.png": { atk: 0, def: 0, cost: 1, type: "spell", subtype: "Contínua", effect: "Monstros 'Inseto' no campo ganham +100 ATK permanentemente." },
+            "CestadeFrutas.png": { atk: 0, def: 0, cost: 2, type: "spell", subtype: "Contínua", effect: "Todos os monstros 'Planta' no campo ganham +500 DEF até o final do turno em que esta magia foi ativada. Permanece no campo." },
+            "ChuvadePolen.png": { atk: 0, def: 0, cost: 1, type: "spell", subtype: "Contínua", effect: "Todos os seus monstros 'Planta' no campo ganham +300 ATK até o final do turno em que esta magia foi ativada. Permanece no campo." },
+            "OrvalhoMatinal.png": { atk: 0, def: 0, cost: 1, type: "spell", subtype: "Instantânea", effect: "Compre 1 carta. (Descarta após uso)" },
+            "TempestadedeFolhas.png": { atk: 0, def: 0, cost: 1, type: "spell", subtype: "Instantânea", effect: "Dá 300 de dano direto ao PV do oponente. (Descarta após uso)" },
+            "MorangodoPoder.png": { atk: 0, def: 0, cost: 1, type: "spell", subtype: "Contínua", effect: "Escolha 1 monstro 'Planta': ele ganha +1000 ATK até o final do turno em que esta magia foi ativada. Permanece no campo." },
+            
+            // CAMPO (4 Cartas)
+            "CampoFogo.png": { atk: 0, def: 0, cost: 2, type: "field", subtype: "Campo", element: "Fogo", effect: "Fogo: Insetos +300 PV, Plantas -300 PV. (Permanece no campo)" },
+            "CampoAgua.png": { atk: 0, def: 0, cost: 2, type: "field", subtype: "Campo", element: "Água", effect: "Água: Plantas +300 PV, Insetos -300 PV. (Permanece no campo)" },
+            "CampoTerra.png": { atk: 0, def: 0, cost: 2, type: "field", subtype: "Campo", element: "Terra", effect: "Terra: Insetos +300 PV, Plantas -300 PV. (Permanece no campo)" },
+            "CampoVento.png": { atk: 0, def: 0, cost: 2, type: "field", subtype: "Campo", element: "Vento", effect: "Vento: Plantas +300 PV, Insetos -300 PV. (Permanece no campo)" },
+            
+            // EQUIPAMENTO (Exemplo para aplicar a regra)
+            "EspadaDeFolha.png": { atk: 0, def: 0, cost: 2, type: "spell", subtype: "Equipamento", effect: "Equipa-se a um monstro. O monstro equipado ganha +500 ATK. Se o monstro equipado for destruído, esta carta vai para o cemitério." },
+        };
+
+        const allCards = Object.keys(cardData);
+
+        // ----------------------- VARIÁVEIS DE ESTADO DO JOGO -----------------------
+        let deckCartas = []; 
+        let maoCartas = []; 
+        let cemiterioCont = 0; 
+        let manaAtual = 0;  
+        let turnoAtual = 0; 
+        let pvJogador = 8000;   
+        let pvInimigo = 8000;
+        let fieldState = {}; 
+        let equipmentTargets = {}; 
+
+        // ESTADO DO INIMIGO
+        let deckInimigo = []; 
+        let maoInimiga = []; 
+        let manaInimiga = 0; 
+        let cemiterioInimigoCont = 0; 
+
+        // ESTADO DE AÇÃO
+        let monstersSummonedThisTurn = 0; 
+        let monstersSummonedThisTurnEnemy = 0; 
+        let isDeckShuffled = false; 
+        let isPlayerTurn = false; 
+        let selectedMonsterSlot = null; 
+        let selectedHandCard = null;    
+        let tributeSlotForChuchu = null; 
+        let isCombatMode = false;       
+        let isEnemyTurnInProgress = false; // **VARIÁVEL CHAVE DE SINCRONIZAÇÃO**
+        let targetingEquipment = false; 
+        
+        // Mana Base Mínima
+        const MANA_BASE_MINIMA = 3; 
+        const MAX_MANA = 10;
+        
+        // Cartas Magicas Instantâneas (Descarta após uso)
+        const INSTANT_SPELLS = ["OrvalhoMatinal.png", "TempestadedeFolhas.png"];
+        
+        // Tempos de AI
+        const AI_PAUSE_LONG = 800; // 0.8s
+        const AI_PAUSE_SHORT = 500; // 0.5s
+
+
+        // ----------------------- REFERÊNCIAS DOM -----------------------
+        const deckStack = document.getElementById("z-deck"); 
+        const deckCountLabel = document.createElement('span'); 
+        deckCountLabel.id = "deckCount";
+        const mao = document.getElementById("maoJogador");
+        const quadrantes = document.querySelectorAll(".quadrante[data-slot]"); 
+        const pvCountLabel = document.getElementById("pvCount");
+        const endTurnButton = document.getElementById("endTurnBtn");
+        const turnStatusLabel = document.getElementById("turnStatus");
+        const gameBody = document.getElementById("gameBody");
+        const gameAlertElement = document.getElementById("gameAlert");
+        const pvEnemyCountLabel = document.getElementById("pvEnemyCount");
+        const manaEnemyCountLabel = document.getElementById("manaEnemyCount");
+        const deckEnemyCountLabel = document.getElementById("deckEnemyCount");
+        const turnCountLabel = document.getElementById("turnCount");
+        const manaCountLabel = document.getElementById("manaCount");
+        const initialPrompt = document.getElementById("initialPrompt"); // Nova ref
+
+        if(deckStack) deckStack.appendChild(deckCountLabel);
+
+
+        // ----------------------- FUNÇÕES DE UTILIDADE E ESTADO -----------------------
+
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        function displayGameAlert(message) {
+            if (gameAlertElement) {
+                gameAlertElement.textContent = message;
+                gameAlertElement.classList.add('visible');
+                setTimeout(() => {
+                    gameAlertElement.classList.remove('visible');
+                }, 3000); 
+            } else {
+                alert(message);
+            }
+        }
+
+        function ajustarPV(valor) {
+            pvJogador += valor;
+            if (pvCountLabel) pvCountLabel.textContent = pvJogador;
+            
+            if (pvJogador <= 0) {
+                pvJogador = 0;
+                if (pvCountLabel) pvCountLabel.textContent = pvJogador;
+                disableGame();
+                if (confirm("Você perdeu! Deseja jogar novamente?")) { location.reload(); } else { displayGameAlert("Fim de Jogo! Você perdeu!"); }
+            } else if (valor < 0) {
+                displayGameAlert(`Você perdeu ${Math.abs(valor)} PV.`);
+            } else if (valor > 0) {
+                 displayGameAlert(`Você ganhou ${valor} PV.`);
+            }
+        }
+
+        function ajustarPVInimigo(valor) {
+            pvInimigo += valor; 
+            if (pvEnemyCountLabel) pvEnemyCountLabel.textContent = pvInimigo;
+            
+            if (pvInimigo <= 0) {
+                pvInimigo = 0;
+                if (pvEnemyCountLabel) pvEnemyCountLabel.textContent = pvInimigo;
+                disableGame();
+                if (confirm("Você VENCEU! Deseja iniciar um novo duelo?")) { location.reload(); } else { displayGameAlert("Vitória! Inimigo derrotado!"); }
+            } else if (valor < 0) {
+                displayGameAlert(`Inimigo perdeu ${Math.abs(valor)} PV.`);
+            } else if (valor > 0) {
+                 displayGameAlert(`Inimigo ganhou ${valor} PV.`);
+            }
+        }
+
+        function shuffleDeck(deck) {
+            for (let i = deck.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [deck[i], deck[j]] = [deck[j], deck[i]];
+            }
+        }
+
+        function disableGame() {
+            endTurnButton.disabled = true;
+            document.querySelectorAll('#controls button').forEach(btn => btn.disabled = true);
+        }
+        
+        function discardCardToCemetery(owner, cardName) {
+            if (owner === 'player') {
+                cemiterioCont++;
+                desenharCemiterio();
+            } else if (owner === 'enemy') {
+                cemiterioInimigoCont++;
+                desenharCemiterioInimigo();
+            }
+        }
+
+        function atualizarStatusUI() {
+            if (manaCountLabel) manaCountLabel.textContent = manaAtual;
+            if (turnCountLabel) turnCountLabel.textContent = turnoAtual;
+            if (pvCountLabel) pvCountLabel.textContent = pvJogador;
+            if (deckCountLabel) deckCountLabel.textContent = `${deckCartas.length} cartas`;
+            if (pvEnemyCountLabel) pvEnemyCountLabel.textContent = pvInimigo;
+            if (manaEnemyCountLabel) manaEnemyCountLabel.textContent = manaInimiga;
+            if (deckEnemyCountLabel) deckEnemyCountLabel.textContent = `${deckInimigo.length} cartas`;
+            
+            if (turnStatusLabel) {
+                turnStatusLabel.textContent = turnoAtual === 0 ? "Aguardando Início" : isPlayerTurn ? "Seu Turno" : "Turno do Inimigo";
+                turnStatusLabel.classList.toggle('my-turn', isPlayerTurn);
+                turnStatusLabel.classList.toggle('enemy-turn', !isPlayerTurn);
+            }
+            
+            if (endTurnButton) {
+                // Se turnoAtual === 0, mostra "Iniciar Jogo" e chama startGame()
+                if (turnoAtual === 0) {
+                    endTurnButton.textContent = "Iniciar Jogo (P)";
+                    endTurnButton.onclick = startGame;
+                } else {
+                    // Se for turno 1+, mostra "Passar Turno" e chama passarTurno()
+                    endTurnButton.textContent = isPlayerTurn ? "Passar Turno (P)" : "Aguardando Inimigo...";
+                    endTurnButton.onclick = passarTurno;
+                }
+                
+                // Habilita o botão apenas se for o turno do jogador ou for o Turno 0 para iniciar E a AI não estiver em processo
+                endTurnButton.disabled = (turnoAtual > 0 && !isPlayerTurn) || isEnemyTurnInProgress; 
+            }
+
+            // Atualiza status overlays de monstros no campo
+            document.querySelectorAll('.quadrante[data-slot^="p-s-"] .card, .quadrante[data-slot^="e-s-"] .card').forEach(cardElement => {
+                const slotId = cardElement.closest('.quadrante').dataset.slot;
+                const state = fieldState[slotId];
+                
+                // Remove o stats anterior antes de criar o novo
+                const statsDivContainer = cardElement.querySelector('.card-overlay');
+                if (statsDivContainer) {
+                    statsDivContainer.remove();
+                }
+
+                if (state && state.type === 'monster') {
+                    cardElement.appendChild(criarDivStats(state.name, false, slotId));
+                }
+            });
+
+            updateFieldBackground();
+        }
+
+        function desenharDeck() {
+            if (deckStack) {
+                // A imagem de fundo agora está na raiz
+                deckStack.style.backgroundImage = deckCartas.length > 0 ? "url('fundo.png')" : "none";
+                deckCountLabel.textContent = `${deckCartas.length} cartas`;
+            }
+        }
+        function desenharCemiterio() {
+            const cem = document.getElementById('z-cemetery');
+            if (cem) cem.innerHTML = `⚰️ ${cemiterioCont}`;
+        }
+        function desenharDeckInimigo() {
+             const deckE = document.getElementById('e-deck');
+             if (deckE) {
+                 // A imagem de fundo agora está na raiz
+                 deckE.style.backgroundImage = deckInimigo.length > 0 ? "url('fundo.png')" : "none";
+                 document.getElementById("deckEnemyCount").textContent = `${deckInimigo.length} cartas`;
+             }
+        }
+        function desenharCemiterioInimigo() {
+            const cemE = document.getElementById('e-cemetery');
+            if (cemE) cemE.innerHTML = `⚰️ ${cemiterioInimigoCont}`;
+        }
+        
+        function checkHandLimit(owner) {
+            let hand, ownerText;
+            
+            if (owner === 'player') {
+                hand = maoCartas;
+                ownerText = "Você";
+            } else {
+                hand = maoInimiga;
+                ownerText = "O Inimigo";
+            }
+            
+            while (hand.length > 7) {
+                const cardToDiscard = hand.pop();
+                discardCardToCemetery(owner, cardToDiscard);
+                displayGameAlert(`${ownerText} descartou ${cardToDiscard.replace(/\.[^/.]+$/, "").trim()} por excesso de cartas na mão.`);
+                
+                if (owner === 'player') {
+                    const cardElement = mao.querySelector(`.card[data-nome="${cardToDiscard}"]`);
+                    if (cardElement) {
+                        mao.removeChild(cardElement);
+                    }
+                }
+            }
+        }
+
+
+        function updateFieldBackground() {
+            let fieldCardSlot = fieldState['z-field'];
+            if (!fieldCardSlot) {
+                fieldCardSlot = fieldState['e-field'];
+            }
+
+            const element = fieldCardSlot && cardData[fieldCardSlot.name].element;
+            
+            gameBody.className = ''; 
+            if (element === 'Fogo') gameBody.classList.add('field-fire');
+            else if (element === 'Água') gameBody.classList.add('field-water');
+            else if (element === 'Terra') gameBody.classList.add('field-earth');
+            else if (element === 'Vento') gameBody.classList.add('field-wind');
+        }
+
+        function getFieldMonsters(prefix) {
+            return Object.keys(fieldState).filter(slot => slot.startsWith(prefix) && fieldState[slot] && fieldState[slot].type === 'monster');
+        }
+
+        function applyPermanentBuff(slotId, statType, value, sourceCardName) {
+            const state = fieldState[slotId];
+            if (state && state.type === 'monster') {
+                state.permanent_buffs.push({ type: statType, value: value, source: sourceCardName });
+                atualizarStatusUI();
+            }
+        }
+        function applyTemporaryBuff(slotId, statType, value, sourceCardName) {
+            const state = fieldState[slotId];
+            if (state && state.type === 'monster') {
+                state.temporary_buffs.push({ type: statType, value: value, source: sourceCardName });
+                atualizarStatusUI();
+            }
+        }
+        
+        function removeEffectsBySource(sourceCardName) {
+            // Remove buffs permanentes de Magias Contínuas de Invocação
+            const cardsToCheck = getFieldMonsters('p-s-').concat(getFieldMonsters('e-s-'));
+            cardsToCheck.forEach(sId => {
+                const monsterState = fieldState[sId];
+                if (monsterState) {
+                    monsterState.permanent_buffs = monsterState.permanent_buffs.filter(buff => buff.source !== sourceCardName);
+                }
+            });
+        }
+
+
+        function calcularATK(slotId) { return calculateCurrentStat(slotId, 'ATK'); }
+        function calcularDEF(slotId) { return calculateCurrentStat(slotId, 'DEF'); }
+
+        function calculateCurrentStat(slotId, statType) {
+            const state = fieldState[slotId];
+            if (!state || state.type !== 'monster') return 0; 
+            
+            let baseStat = statType === 'ATK' ? state.base_atk : state.base_def;
+            
+            if (state.permanent_buffs) {
+                state.permanent_buffs.forEach(buff => {
+                    if (buff.type === statType) {
+                        baseStat += buff.value;
+                    }
+                });
+            }
+
+            if (state.temporary_buffs) {
+                state.temporary_buffs.forEach(buff => {
+                    if (buff.type === statType) {
+                        baseStat += buff.value;
+                    }
+                });
+            }
+            
+            // Adicionar buffs de Equipamento
+            Object.keys(equipmentTargets).forEach(monsterSlotId => {
+                if (monsterSlotId === slotId) {
+                    const equipSlotId = equipmentTargets[monsterSlotId];
+                    const equipCardName = fieldState[equipSlotId].name;
+                    if (equipCardName === "EspadaDeFolha.png" && statType === 'ATK') {
+                        baseStat += 500;
+                    }
+                }
+            });
+            
+            return Math.max(0, baseStat); 
+        }
+
+        function clearTemporaryBuffs() {
+            Object.keys(fieldState).forEach(slotId => {
+                const state = fieldState[slotId];
+                if (state && state.type === 'monster') {
+                    state.temporary_buffs = [];
+                }
+            });
+        }
+
+        function criarDivStats(cartaNome, isHand, slotId = null) {
+            const data = cardData[cartaNome];
+            const statsDiv = document.createElement('div');
+            statsDiv.classList.add('card-overlay');
+            
+            if (data.type === 'monster' && !isHand) {
+                const atk = slotId ? calcularATK(slotId) : data.atk;
+                const def = slotId ? calcularDEF(slotId) : data.def;
+                const position = slotId ? fieldState[slotId].position : 'ATK';
+                
+                let colorATK = atk > data.atk ? 'lime' : atk < data.atk ? 'red' : 'white';
+                let colorDEF = def > data.def ? 'lime' : def < data.def ? 'red' : 'white';
+
+                if (position === 'ATK') {
+                    statsDiv.innerHTML = `<span style="color:${colorATK};">ATK: ${atk}</span> | DEF: ${def}`;
+                } else {
+                    statsDiv.innerHTML = `ATK: ${atk} | <span style="color:${colorDEF};">DEF: ${def}</span>`;
+                }
+            } else if (data.type === 'spell' || data.type === 'field') {
+                statsDiv.innerHTML = `Custo: ${data.cost} | ${data.subtype}`;
+            } else {
+                 statsDiv.innerHTML = `Custo: ${data.cost}`;
+            }
+            
+            return statsDiv;
+        }
+
+        function createCardHoverInfo(cartaNome) {
+            const data = cardData[cartaNome];
+            const hoverDiv = document.createElement('div');
+            hoverDiv.classList.add('card-info-hover');
+            
+            let infoHTML = `
+                <strong>${cartaNome.replace(/\.[^/.]+$/, "").trim()}</strong><br>
+                Tipo: ${data.type.toUpperCase()}<br>
+                Subtipo: ${data.subtype || 'N/A'}<br>
+                Custo: ${data.cost || 0}<br>
+            `;
+
+            if (data.type === 'monster') {
+                infoHTML += `ATK: ${data.atk} | DEF: ${data.def}<br>`;
+            }
+            if (data.element) {
+                infoHTML += `Elemento: ${data.element}<br>`;
+            }
+            
+            infoHTML += `Efeito: <em>${data.effect || 'Nenhum'}</em>`;
+            
+            hoverDiv.innerHTML = infoHTML;
+            return hoverDiv;
+        }
+
+        function adicionarCartaMao(cartaNome) {
+            maoCartas.push(cartaNome); 
+            
+            const carta = document.createElement("div");
+            carta.classList.add("card");
+            carta.dataset.nome = cartaNome;
+            
+            // --- CORREÇÃO: usa o caminho relativo na raiz ---
+            carta.style.backgroundImage = `url('${cartaNome}'), linear-gradient(to bottom, #d6b38c, #6c543f)`;
+            // -------------------------------------------------------------
+            
+            carta.appendChild(criarDivStats(cartaNome, true));
+            carta.appendChild(createCardHoverInfo(cartaNome));
+
+            // Permite clique/toque para acionar o menu
+            carta.addEventListener("click", (e) => {
+                 e.stopPropagation(); 
+                 if (!isPlayerTurn || isEnemyTurnInProgress) { 
+                     displayGameAlert("Não é o seu turno ou o inimigo está jogando!"); 
+                     hideAllMenus();
+                     return; 
+                 }
+                 
+                 if (isCombatMode) return; 
+                 
+                 if (selectedHandCard === cartaNome && e.currentTarget.querySelector('.card-action-menu.visible')) {
+                    hideAllMenus();
+                 } else {
+                    hideAllMenus();
+                    showHandActionMenu(cartaNome, e.currentTarget);
+                 }
+            });
+
+            mao.appendChild(carta);
+            
+            checkHandLimit('player');
+
+            atualizarStatusUI();
+        }
+
+        function removerCartaDaMão(cartaNome) {
+            const index = maoCartas.indexOf(cartaNome);
+            if (index > -1) {
+                maoCartas.splice(index, 1);
+                const cartaElement = mao.querySelector(`.card[data-nome="${cartaNome}"]`);
+                if (cartaElement) {
+                    mao.removeChild(cartaElement);
+                }
+            }
+            selectedHandCard = null;
+        }
+
+        function comprarCartas(qtd = 1) {
+            for (let i = 0; i < qtd; i++) {
+                if (deckCartas.length === 0) {
+                    displayGameAlert("Seu deck está vazio! Sem cartas para comprar.");
+                    break;
+                }
+                const cartaNome = deckCartas.pop();
+                adicionarCartaMao(cartaNome); 
+            }
+            desenharDeck();
+            atualizarStatusUI();
+        }
+
+        function comprarCartasInimigo(qtd = 1) {
+            for (let i = 0; i < qtd; i++) {
+                if (deckInimigo.length === 0) {
+                    break;
+                }
+                const cartaNome = deckInimigo.pop();
+                maoInimiga.push(cartaNome);
+            }
+            checkHandLimit('enemy');
+            desenharDeckInimigo();
+            atualizarStatusUI();
+        }
+
+        function discardFieldCard(slotId, cartaName, ignoreCemetery = false) {
+            if (fieldState[slotId]) {
+                const state = fieldState[slotId];
+                removeEffectsBySource(state.name); // Remove buffs globais de Magias Contínuas
+
+                // **LOGICA DE REGRA DE EQUIPAMENTO**
+                if (state.type === 'monster') {
+                    // Se um monstro é destruído, a Magia de Equipamento anexada também é destruída
+                    Object.keys(equipmentTargets).forEach(monsterSlotId => {
+                         if (monsterSlotId === slotId) {
+                             const equipSlotId = equipmentTargets[monsterSlotId];
+                             const equipCardName = fieldState[equipSlotId].name;
+                             // Descarta o equipamento, mas não conta como "destruição em cadeia"
+                             discardFieldCard(equipSlotId, equipCardName, false); 
+                         }
+                    });
+                    // Remove o alvo de Equipamento do monstro destruído
+                    delete equipmentTargets[slotId];
+                } else if (state.subtype === 'Equipamento') {
+                     // Se um equipamento é destruído, remove o slot do equipamento do alvo
+                     Object.keys(equipmentTargets).forEach(monsterSlotId => {
+                          if (equipmentTargets[monsterSlotId] === slotId) {
+                              delete equipmentTargets[monsterSlotId];
+                              // Força a UI a atualizar os stats do monstro (para remover o buff)
+                              atualizarStatusUI(); 
+                          }
+                     });
+                }
+            }
+            
+            const slotOwner = slotId.startsWith('e-') ? 'enemy' : 'player';
+            
+            delete fieldState[slotId];
+            const q = document.querySelector(`.quadrante[data-slot="${slotId}"]`);
+            if (q) {
+                q.innerHTML = '';
+                if (q.dataset.position) delete q.dataset.position; 
+                q.classList.remove('selected-card');
+            }
+            
+            if (!ignoreCemetery) {
+                discardCardToCemetery(slotOwner, cartaName);
+            }
+            
+            updateFieldBackground();
+            atualizarStatusUI();
+        }
+
+        function changeMonsterPosition(slotId, newPosition) {
+            const state = fieldState[slotId];
+            if (!state || state.hasPositionChanged || state.hasAttacked) {
+                displayGameAlert("Posição já foi alterada neste turno ou monstro atacou.");
+                return;
+            }
+            
+            state.position = newPosition;
+            state.hasPositionChanged = true;
+            
+            const q = document.querySelector(`.quadrante[data-slot="${slotId}"]`);
+            if (q) q.dataset.position = newPosition;
+
+            hideAllMenus();
+            atualizarStatusUI();
+            displayGameAlert(`Monstro em ${slotId} mudou para ${newPosition}.`);
+        }
+        
+        function hideAllMenus() {
+            document.querySelectorAll('.card-action-menu.visible').forEach(menu => {
+                menu.classList.remove('visible');
+            });
+            selectedMonsterSlot = null;
+            selectedHandCard = null;
+            tributeSlotForChuchu = null;
+            targetingEquipment = false;
+            document.querySelectorAll('#maoJogador .card').forEach(card => card.classList.remove('selected-card'));
+            document.querySelectorAll('.quadrante .card').forEach(card => card.classList.remove('selected-card'));
+            document.querySelectorAll('.quadrante').forEach(q => q.classList.remove('selected-card')); 
+            document.querySelectorAll('.status-box').forEach(box => box.classList.remove('selected-card')); 
+        }
+        
+        function applyCardEffect(cartaName, slotId, targetSlotId = null) {
+            const data = cardData[cartaName];
+            const isEnemy = slotId.startsWith('e-');
+
+            // 1. Efeitos de Magia Instantânea 
+            if (INSTANT_SPELLS.includes(cartaName)) {
+                if (cartaName === "OrvalhoMatinal.png") {
+                    if (isEnemy) comprarCartasInimigo(1); else comprarCartas(1);
+                } else if (cartaName === "TempestadedeFolhas.png") {
+                    const targetPVFunc = isEnemy ? ajustarPV : ajustarPVInimigo;
+                    targetPVFunc(-300);
+                }
+                // Magias Instantâneas sempre são descartadas após a ativação
+                discardFieldCard(slotId, cartaName); 
+                return;
+            }
+            
+            // 2. Efeitos de Magia de Equipamento
+            if (data.subtype === 'Equipamento') {
+                 if (targetSlotId) {
+                      // Salva a referência de que o monstro em targetSlotId está equipado por slotId
+                      equipmentTargets[targetSlotId] = slotId;
+                      // O buff é aplicado na função calculateCurrentStat()
+                      displayGameAlert(`${cartaName.replace(/\.[^/.]+$/, "").trim()} equipou-se ao monstro em ${targetSlotId}.`);
+                      return; // Permanece no campo
+                 } else {
+                      displayGameAlert("Erro: Magia de Equipamento ativada sem alvo válido.");
+                      discardFieldCard(slotId, cartaName);
+                      return;
+                 }
+            }
+
+            // 3. Efeitos de Magia Contínua/Campo
+            if (data.type === 'spell' || data.type === 'field') {
+                 
+                // Efeito de Magia Contínua: Casa Vazia (Buff Permanente Global)
+                if (cartaName === "CasaVazia.png") {
+                     const affectedSlots = getFieldMonsters('p-s-').concat(getFieldMonsters('e-s-')).filter(s => fieldState[s].subtype === 'Inseto');
+                     affectedSlots.forEach(sId => {
+                         applyPermanentBuff(sId, 'ATK', 100, "CasaVazia.png");
+                     });
+                     return; // Permanece no campo
+                }
+                
+                // Magias de Buff de Turno (Aplicam o buff e permanecem no campo)
+                if (cartaName === "ChuvadePolen.png") {
+                    const myPrefix = isEnemy ? 'e-s-' : 'p-s-';
+                    getFieldMonsters(myPrefix).filter(sId => fieldState[sId].subtype === 'Planta').forEach(sId => {
+                        applyTemporaryBuff(sId, 'ATK', 300, "ChuvadePolen.png");
+                    });
+                    return; // Permanece no campo
+                } else if (cartaName === "CestadeFrutas.png") {
+                    // Cesta de Frutas afeta ambos
+                    getFieldMonsters('p-s-').concat(getFieldMonsters('e-s-')).filter(sId => fieldState[sId].subtype === 'Planta').forEach(sId => {
+                        applyTemporaryBuff(sId, 'DEF', 500, "CestadeFrutas.png");
+                    });
+                    return; // Permanece no campo
+                }
+                
+                // Morango do Poder (Buff de Turno com alvo)
+                if (cartaName === "MorangodoPoder.png") {
+                    if (targetSlotId) {
+                        applyTemporaryBuff(targetSlotId, 'ATK', 1000, "MorangodoPoder.png");
+                    }
+                    return; // Permanece no campo
+                }
+                
+                // Magias de Campo (O efeito do campo é aplicado na função updateFieldBackground e nos cálculos)
+                if (data.type === 'field') {
+                    return; // Permanece no campo
+                }
+            }
+
+
+            // 4. Efeitos de Invocação de Monstro
+            // Efeito de invocação do Chuchu Vilão (destrói magia/campo inimigo virado para cima)
+            if (cartaName === "ChuchuVilao.png" && fieldState[slotId].invokedByTribute) {
+                 const enemySpellSlots = ['e-m-1', 'e-m-2', 'e-m-3', 'e-m-4', 'e-m-5', 'e-field'].filter(sId => fieldState[sId] && (fieldState[sId].type === 'spell' || fieldState[sId].type === 'field'));
+                 
+                 if (enemySpellSlots.length > 0) {
+                      const targetSlotId = enemySpellSlots[Math.floor(Math.random() * enemySpellSlots.length)];
+                      displayGameAlert(`Efeito de Chuchu Vilão: Destrói a carta Magia/Campo inimiga em ${targetSlotId}!`);
+                      discardFieldCard(targetSlotId, fieldState[targetSlotId].name);
+                 }
+            }
+            
+            // Efeito de Ant War (Buff Permanente)
+            if (cartaName === "AntWar.png") {
+                 const affectedSlots = getFieldMonsters('p-s-').concat(getFieldMonsters('e-s-')).filter(s => fieldState[s].subtype === 'Inseto' && s !== slotId);
+                 affectedSlots.forEach(sId => {
+                     applyPermanentBuff(sId, 'ATK', 100, "AntWar.png");
+                 });
+            }
+            
+            // Efeito de Rainha das Formigas (Buff Permanente)
+            if (cartaName === "RainhadasFormigas.png") {
+                const affectedSlots = getFieldMonsters('p-s-').concat(getFieldMonsters('e-s-')).filter(s => fieldState[s].subtype === 'Inseto');
+                affectedSlots.forEach(sId => {
+                    applyPermanentBuff(sId, 'ATK', 300, "RainhadasFormigas.png");
+                });
+            }
+        }
+
+        // ----------------------- LÓGICA DE INVOCAÇÃO/ATIVAÇÃO -----------------------
+
+        function getAvailableSlots(cardType, isEnemy = false) {
+            let prefix = isEnemy ? 'e-' : 'p-';
+            let slots = [];
+            if (cardType === 'monster') {
+                slots = [`${prefix}s-1`, `${prefix}s-2`, `${prefix}s-3`, `${prefix}s-4`, `${prefix}s-5`];
+            } else if (cardType === 'spell') {
+                slots = [`${prefix}m-1`, `${prefix}m-2`, `${prefix}m-3`, `${prefix}m-4`, `${prefix}m-5`];
+            } else if (cardType === 'field') {
+                slots = [`${prefix}field`];
+            }
+            return slots.filter(slot => !fieldState[slot]);
+        }
+        
+        function highlightTargetSlots(slots, callback) {
+            isCombatMode = true; 
+            hideAllMenus();
+            
+            // Usa 'click' para compatibilidade com toque
+            document.body.addEventListener('click', cancelTargetSelectionOnClick);
+            
+            slots.forEach(slotId => {
+                const q = document.querySelector(`.quadrante[data-slot="${slotId}"]`);
+                const isPVTarget = slotId === 'pvEnemyCount'; 
+
+                const targetElement = isPVTarget ? pvEnemyCountLabel.closest('.status-box') : q;
+                
+                if (targetElement) {
+                    targetElement.classList.add('selected-card'); 
+                    // Usa 'click' para funcionar com toque
+                    targetElement.onclick = (e) => {
+                        e.stopPropagation();
+                        exitCombatMode(); 
+                        callback(slotId);
+                    };
+                }
+            });
+        }
+        
+        function cancelTargetSelectionOnClick(e) {
+            if (!e.target.closest('#gameBody') && !e.target.closest('#maoJogador')) {
+                exitCombatMode();
+                document.body.removeEventListener('click', cancelTargetSelectionOnClick);
+            }
+        }
+        
+        function exitCombatMode() {
+            isCombatMode = false;
+            targetingEquipment = false;
+            document.querySelectorAll('.selected-card').forEach(el => {
+                el.classList.remove('selected-card');
+                el.onclick = null; 
+            });
+            document.body.removeEventListener('click', cancelTargetSelectionOnClick);
+        }
+
+        function invocarCarta(cardName, position, slotId, isEnemy = false, targetSlotId = null) {
+            const data = cardData[cardName];
+            const custo = data.cost;
+            let finalCost = custo;
+            
+            const hand = isEnemy ? maoInimiga : maoCartas;
+            let currentMana = isEnemy ? manaInimiga : manaAtual;
+            const cardType = data.type;
+            
+            if (cardType === 'monster' && !isEnemy && monstersSummonedThisTurn >= 1) {
+                 displayGameAlert("Você já invocou um monstro neste turno.");
+                 return false;
+            }
+            if (cardType === 'monster' && isEnemy && monstersSummonedThisTurnEnemy >= 1) {
+                 return false;
+            }
+            
+            if (cardName === "BarataDomestica.png" && (isEnemy ? pvInimigo : pvJogador) < 4000) {
+                 finalCost = 0;
+            }
+            
+            // 1. Lógica de Tributo (Chuchu Vilão)
+            let isTributeInvocation = false;
+            if (cardName === "ChuchuVilao.png") {
+                 if (tributeSlotForChuchu) {
+                     isTributeInvocation = true;
+                 } else {
+                     if (!isEnemy) displayGameAlert("Chuchu Vilão deve ser invocado por Tributo de uma Planta!");
+                     return false;
+                 }
+            } 
+            
+            // 2. Verificação de Mana
+            if (finalCost > currentMana) {
+                 if (!isEnemy) displayGameAlert(`Mana insuficiente! Custo: ${finalCost}.`);
+                 return false; 
+            }
+            
+            // 3. Lógica de Magia Contínua/Campo: Verifica se o slot de destino já está ocupado
+            if (cardType === 'spell' || cardType === 'field') {
+                 if (cardType === 'field') {
+                      const fieldSlotId = isEnemy ? 'e-field' : 'z-field';
+                      if (fieldState[fieldSlotId] && fieldState[fieldSlotId].name !== cardName) {
+                           // Descarta a carta de campo atual
+                           const oldCardName = fieldState[fieldSlotId].name;
+                           discardFieldCard(fieldSlotId, oldCardName);
+                      }
+                      slotId = fieldSlotId; // Força o slot
+                 } else if (fieldState[slotId] && !INSTANT_SPELLS.includes(cardName)) {
+                      // Magias/Armadilhas Contínuas e Equipamento só podem ser ativadas em slots vazios
+                      if (!isEnemy) displayGameAlert("Este slot já está ocupado por outra Magia/Armadilha.");
+                      return false;
+                 } else if (INSTANT_SPELLS.includes(cardName)) {
+                      // Magias instantâneas ativam e vão para o cemitério, não precisam de slot de campo livre.
+                 }
+            }
+
+
+            // Remove carta da mão
+            const index = hand.indexOf(cardName);
+            if (index > -1) {
+                hand.splice(index, 1);
+                if (!isEnemy) {
+                    const cartaElement = mao.querySelector(`.card[data-nome="${cardName}"]`);
+                    if (cartaElement) mao.removeChild(cartaElement);
+                }
+            } else {
+                return false; 
+            }
+            
+            // Executa Tributo
+            if (isTributeInvocation) {
+                 discardFieldCard(tributeSlotForChuchu, fieldState[tributeSlotForChuchu].name, false); 
+                 slotId = tributeSlotForChuchu; // O slot de invocação é o slot que acabou de ser limpo
+            }
+            
+            // Deduz Mana
+            if (isEnemy) {
+                manaInimiga -= finalCost;
+            } else {
+                manaAtual -= finalCost;
+            }
+            
+            // Contador de Invocação de Monstro
+            if (cardType === 'monster') {
+                if (isEnemy) {
+                    monstersSummonedThisTurnEnemy++;
+                } else {
+                    monstersSummonedThisTurn++;
+                }
+            }
+
+            tributeSlotForChuchu = null;
+            hideAllMenus();
+
+            // 4. Criação do Estado e Elemento DOM
+            let finalPosition = position;
+            
+            if (cardType === 'spell' || cardType === 'field') {
+                 finalPosition = 'Active'; 
+            }
+            
+            // Cria o Estado da Carta no Campo (Magias Instantâneas não persistem em fieldState)
+            if (!INSTANT_SPELLS.includes(cardName) || cardType === 'field') {
+                 fieldState[slotId] = {
+                    name: cardName, type: cardType, subtype: data.subtype, base_atk: data.atk || 0,
+                    base_def: data.def || 0, permanent_buffs: [], temporary_buffs: [], slotId: slotId,
+                    face_up: true, hasAttacked: cardType === 'monster' ? false : true, 
+                    position: finalPosition, canChangePosition: true, hasPositionChanged: false, 
+                    invokedByTribute: isTributeInvocation
+                };
+
+                const qElement = document.querySelector(`.quadrante[data-slot="${slotId}"]`);
+                const carta = document.createElement("div");
+                carta.classList.add("card");
+                carta.dataset.nome = cardName;
+                
+                // --- CORREÇÃO: usa o caminho relativo na raiz ---
+                carta.style.backgroundImage = `url('${cardName}'), linear-gradient(to bottom, #d6b38c, #6c543f)`; 
+                // -------------------------------------------------------------
+                
+                carta.appendChild(createCardHoverInfo(cardName));
+                
+                if (cardType === 'monster') {
+                     qElement.dataset.position = finalPosition; 
+                     carta.appendChild(criarDivStats(cardName, false, slotId));
+                }
+
+                qElement.innerHTML = "";
+                qElement.appendChild(carta);
+            }
+
+            // Aplica efeito
+            applyCardEffect(cardName, slotId, targetSlotId); 
+            
+            if (!isEnemy) {
+                 displayGameAlert(`${cardName.replace(/\.[^/.]+$/, "").trim()} foi invocada/ativada em ${slotId}.`);
+            }
+            
+            atualizarStatusUI();
+            return true; 
+        }
+
+        // ----------------------- LÓGICA DE COMBATE -----------------------
+
+        function enterCombatMode(attackerSlotId) {
+            hideAllMenus();
+            isCombatMode = true;
+            const attackerState = fieldState[attackerSlotId];
+
+            document.querySelector(`.quadrante[data-slot="${attackerSlotId}"]`).classList.add('selected-card');
+            
+            const enemyMonsterSlots = getFieldMonsters('e-s-');
+            let possibleTargets = [];
+            
+            // Regra de Ataque Direto
+            const isDirectAttackAllowed = enemyMonsterSlots.length === 0;
+            const isArqueiraMestre = attackerState.name === "ArqueiraMestre.png";
+            
+            const totalPlants = getFieldMonsters('p-s-').concat(getFieldMonsters('e-s-')).filter(sId => fieldState[sId].subtype === 'Planta').length;
+            const canArqueiraDirect = isArqueiraMestre && totalPlants >= 3;
+            
+            if (isDirectAttackAllowed || canArqueiraDirect) {
+                 possibleTargets.push('pvEnemyCount'); 
+                 displayGameAlert(`Ataque direto ao PV do Inimigo disponível.`);
+            } 
+            
+            possibleTargets = possibleTargets.concat(enemyMonsterSlots);
+
+            if (possibleTargets.length === 0) {
+                 displayGameAlert("Não há alvos válidos para atacar.");
+                 exitCombatMode();
+                 return;
+            }
+
+            // Marcar alvos
+            possibleTargets.forEach(targetId => {
+                const targetElement = targetId === 'pvEnemyCount' ? pvEnemyCountLabel.closest('.status-box') : document.querySelector(`.quadrante[data-slot="${targetId}"]`);
+                
+                if (targetElement) {
+                    targetElement.classList.add('selected-card');
+                    // Usa 'click' para funcionar com toque
+                    targetElement.onclick = (e) => {
+                        e.stopPropagation();
+                        exitCombatMode();
+                        
+                        if (targetId === 'pvEnemyCount') {
+                            executeDirectAttack(attackerSlotId, false);
+                        } else {
+                            executeCombat(attackerSlotId, targetId);
+                        }
+                    };
+                }
+            });
+            
+            document.body.addEventListener('click', cancelTargetSelectionOnClick);
+
+            displayGameAlert(`Selecione um alvo para ${attackerState.name.replace(/\.[^/.]+$/, "").trim()}.`);
+        }
+        
+        function executeCombat(attackerSlot, targetSlot) {
+            const attackerState = fieldState[attackerSlot];
+            const targetState = fieldState[targetSlot];
+
+            if (!attackerState || !targetState || attackerState.hasAttacked || attackerState.position !== 'ATK') {
+                displayGameAlert("Ataque inválido.");
+                return;
+            }
+            
+            attackerState.hasAttacked = true;
+            attackerState.canChangePosition = false;
+            
+            const isEnemyAttack = attackerSlot.startsWith('e-');
+            
+            let attackerATK = calcularATK(attackerSlot);
+            let targetATK = calcularATK(targetSlot);
+            let targetDEF = calcularDEF(targetSlot);
+            const targetPosition = targetState.position;
+            
+            // ATK Estatística
+            let finalAttackerATK = attackerATK;
+            // DEF Estatística (Se Alface Justiceiro está atacando, usa DEF)
+            if (attackerState.name === "AlfaceJusticeiro.png") {
+                 finalAttackerATK = calcularDEF(attackerSlot);
+            }
+            
+            // Efeito Barata Guerreira
+            if (targetState.name === "BarataGuerreira.png" && targetPosition === 'ATK' && finalAttackerATK > targetATK) {
+                 finalAttackerATK = Math.max(0, finalAttackerATK - 500);
+                 displayGameAlert("Barata Guerreira reduz o ATK do atacante em 500!");
+            }
+            
+            let damage = 0;
+            let result = '';
+            let targetDestroyed = false;
+            let attackerDestroyed = false;
+            
+            if (targetPosition === 'ATK') {
+                if (finalAttackerATK > targetATK) {
+                    damage = finalAttackerATK - targetATK;
+                    result = `${attackerState.name.replace(/\.[^/.]+$/, "").trim()} destrói ${targetState.name.replace(/\.[^/.]+$/, "").trim()} e causa ${damage} de dano ao PV!`;
+                    discardFieldCard(targetSlot, targetState.name);
+                    isEnemyAttack ? ajustarPV(-damage) : ajustarPVInimigo(-damage);
+                    targetDestroyed = true;
+                } else if (finalAttackerATK < targetATK) {
+                    damage = targetATK - finalAttackerATK;
+                    result = `${targetState.name.replace(/\.[^/.]+$/, "").trim()} destrói ${attackerState.name.replace(/\.[^/.]+$/, "").trim()} e ${isEnemyAttack ? 'você toma' : 'o inimigo toma'} ${damage} de dano!`;
+                    discardFieldCard(attackerSlot, attackerState.name);
+                    isEnemyAttack ? ajustarPV(-damage) : ajustarPVInimigo(-damage); 
+                    attackerDestroyed = true;
+                } else {
+                    result = `Combate empatado! Ambos os monstros são destruídos.`;
+                    discardFieldCard(targetSlot, targetState.name);
+                    discardFieldCard(attackerSlot, attackerState.name);
+                    targetDestroyed = true;
+                    attackerDestroyed = true;
+                }
+            } else if (targetPosition === 'DEF') {
+                // ATK do atacante vs DEF do defensor
+                const defenseStat = targetDEF; 
+                
+                if (finalAttackerATK > defenseStat) {
+                    result = `${attackerState.name.replace(/\.[^/.]+$/, "").trim()} destrói ${targetState.name.replace(/\.[^/.]+$/, "").trim()} em DEF.`;
+                    discardFieldCard(targetSlot, targetState.name);
+                    targetDestroyed = true;
+                } else if (finalAttackerATK < defenseStat) {
+                    damage = defenseStat - finalAttackerATK;
+                    result = `${targetState.name.replace(/\.[^/.]+$/, "").trim()} em DEF resiste! ${isEnemyAttack ? 'Você toma' : 'O inimigo toma'} ${damage} de dano!`;
+                    isEnemyAttack ? ajustarPV(-damage) : ajustarPVInimigo(-damage);
+                } else {
+                    result = `Empate em DEF. Nada acontece.`;
+                }
+            }
+            
+            // Efeitos Colaterais
+            if (targetDestroyed) {
+                if (attackerState.name === "MiniBrocolis.png") isEnemyAttack ? ajustarPVInimigo(300) : ajustarPV(300);
+                if (attackerState.name === "GafanhotoLamina.png") isEnemyAttack ? ajustarPV(-500) : ajustarPVInimigo(-500);
+            }
+            // Efeito de Alface Justiceiro: Destruição Mútua
+            if (targetState.name === "AlfaceJusticeiro.png" && targetDestroyed && !attackerDestroyed) {
+                 displayGameAlert("Efeito Colateral de Alface Justiceiro: O monstro atacante é destruído!");
+                 discardFieldCard(attackerSlot, attackerState.name);
+                 attackerDestroyed = true;
+            }
+            
+            displayGameAlert(result);
+            atualizarStatusUI(); 
+        }
+
+        function executeDirectAttack(attackerSlot, isEnemyAttack) {
+            const attackerState = fieldState[attackerSlot];
+            
+            if (!attackerState || attackerState.hasAttacked || attackerState.position !== 'ATK') {
+                if (!isEnemyAttack) displayGameAlert("Ataque inválido ou monstro já atacou.");
+                return;
+            }
+            
+            attackerState.hasAttacked = true;
+            attackerState.canChangePosition = false;
+            
+            let attackerATK = calcularATK(attackerSlot);
+            // Alface Justiceiro ataca com DEF, mesmo em Ataque Direto
+            if (attackerState.name === "AlfaceJusticeiro.png") {
+                 attackerATK = calcularDEF(attackerSlot);
+            }
+            
+            if (isEnemyAttack) {
+                 ajustarPV(-attackerATK);
+            } else {
+                 ajustarPVInimigo(-attackerATK);
+            }
+
+            displayGameAlert(`${attackerState.name.replace(/\.[^/.]+$/, "").trim()} atacou diretamente, causando ${attackerATK} de dano!`);
+            atualizarStatusUI(); 
+        }
+
+        // ----------------------- LÓGICA DE TURNOS -----------------------
+        
+        // **NOVA FUNÇÃO PARA INICIAR O JOGO**
+        function startGame() {
+            if (turnoAtual !== 0) return; // Só inicia se o turno for 0
+
+            turnoAtual = 1;
+            isPlayerTurn = true;
+            monstersSummonedThisTurn = 0;
+            monstersSummonedThisTurnEnemy = 0;
+            
+            // Mana e Compra de Mão Inicial
+            manaAtual = 5; 
+            comprarCartas(5);
+            comprarCartasInimigo(5); 
+            
+            // Remove a mensagem inicial
+            if (initialPrompt) initialPrompt.style.display = 'none';
+
+            displayGameAlert("Duelo Iniciado! Seu Turno 1! Mana Inicial: 5.");
+            atualizarStatusUI(); 
+            // O botão já foi atualizado pela função atualizarStatusUI
+        }
+        // **FIM DA NOVA FUNÇÃO**
+
+        function passarTurno() {
+            if (isEnemyTurnInProgress || turnoAtual === 0) {
+                 // Bloqueia se o inimigo estiver jogando ou se o jogo não tiver começado
+                 return;
+            }
+            
+            // Fim de Turno
+            clearTemporaryBuffs();
+            hideAllMenus();
+            
+            // Limpar estados de Monstro (Pode Atacar/Mudar Posição novamente)
+            getFieldMonsters('p-s-').concat(getFieldMonsters('e-s-')).forEach(slotId => {
+                if (fieldState[slotId] && fieldState[slotId].type === 'monster') {
+                    fieldState[slotId].hasAttacked = false;
+                    fieldState[slotId].hasPositionChanged = false;
+                }
+            });
+            
+            // Limpa as Magias Instantâneas que possam ter ficado no fieldState por algum erro
+            Object.keys(fieldState).forEach(slotId => {
+                 const state = fieldState[slotId];
+                 if (state && INSTANT_SPELLS.includes(state.name)) {
+                      discardFieldCard(slotId, state.name, true);
+                 }
+            });
+
+
+            if (isPlayerTurn) {
+                isPlayerTurn = false;
+                endTurnButton.disabled = true; 
+                turnoInimigo();
+            } else {
+                // Início do Turno do Jogador
+                isEnemyTurnInProgress = false; 
+                turnoAtual++;
+                isPlayerTurn = true;
+                monstersSummonedThisTurn = 0; 
+                monstersSummonedThisTurnEnemy = 0; 
+                const nextManaBase = Math.max(MANA_BASE_MINIMA, turnoAtual);
+                manaAtual = Math.min(nextManaBase, MAX_MANA); 
+                comprarCartas(1);
+                displayGameAlert(`Seu Turno ${turnoAtual}! Mana: ${manaAtual}.`);
+            }
+            atualizarStatusUI();
+        }
+
+        // LÓGICA DE AI INIMIGA MAIS ESPERTA
+        async function turnoInimigo() {
+            isEnemyTurnInProgress = true;
+            atualizarStatusUI(); 
+
+            const baseMana = Math.max(MANA_BASE_MINIMA, turnoAtual);
+            manaInimiga = Math.min(baseMana, MAX_MANA);
+            displayGameAlert(`Turno do Inimigo ${turnoAtual}. Mana: ${manaInimiga}.`);
+            await sleep(AI_PAUSE_LONG); 
+
+            comprarCartasInimigo(1);
+            await sleep(AI_PAUSE_SHORT); 
+            
+            const enemyMonsterSlots = ['e-s-1', 'e-s-2', 'e-s-3', 'e-s-4', 'e-s-5'];
+
+            // 1. Fase de Invocação/Ativação
+            let cardsPlayedThisPhase = true;
+            while(cardsPlayedThisPhase) {
+                 cardsPlayedThisPhase = false;
+                 
+                 // a) Tenta Invocação de Monstro (APENAS 1 VEZ POR TURNO)
+                 if (monstersSummonedThisTurnEnemy < 1) {
+                     const availableSlots = enemyMonsterSlots.filter(slot => !fieldState[slot]);
+                     
+                     if (availableSlots.length > 0) {
+                         const summonableMonsters = maoInimiga.map(cardName => ({ name: cardName, data: cardData[cardName] }))
+                             .filter(c => c.data.type === 'monster' && c.data.cost <= manaInimiga && c.name !== "ChuchuVilao.png");
+                         
+                         if (summonableMonsters.length > 0) {
+                             summonableMonsters.sort((a, b) => b.data.atk - a.data.atk);
+                             const cardToPlay = summonableMonsters[0];
+                             const targetSlot = availableSlots[0]; 
+                             
+                             const position = pvInimigo > 5000 && cardToPlay.data.atk >= 1000 ? 'ATK' : 'DEF';
+                             if (invocarCarta(cardToPlay.name, position, targetSlot, true)) {
+                                  cardsPlayedThisPhase = true;
+                                  await sleep(AI_PAUSE_SHORT);
+                                  continue; 
+                             }
+                         }
+                     }
+                 }
+                 
+                 // b) Tenta Ativar Magia/Campo
+                 const castableSpells = maoInimiga.map(cardName => ({ name: cardName, data: cardData[cardName] }))
+                     .filter(c => (c.data.type === 'spell' || c.data.type === 'field') && c.data.cost <= manaInimiga);
+                 
+                 if (castableSpells.length > 0) {
+                      // Prioridade: Instantâneas (dano/compra), Buffs/Campos, Equipamento
+                      castableSpells.sort((a, b) => {
+                           const aInstant = INSTANT_SPELLS.includes(a.name);
+                           const bInstant = INSTANT_SPELLS.includes(b.name);
+                           const aEquip = a.data.subtype === 'Equipamento';
+                           const bEquip = b.data.subtype === 'Equipamento';
+
+                           if (aInstant && !bInstant) return -1;
+                           if (!aInstant && bInstant) return 1;
+                           if (aEquip && !bEquip) return -1;
+                           if (!aEquip && bEquip) return 1;
+                           return 0;
+                      });
+                      
+                      const spellToCast = castableSpells[0]; 
+                      let targetSlot = null;
+                      
+                      if (INSTANT_SPELLS.includes(spellToCast.name)) {
+                           targetSlot = 'e-m-1'; // Slot virtual para ativação
+                           if (invocarCarta(spellToCast.name, 'Activate', targetSlot, true)) {
+                               cardsPlayedThisPhase = true;
+                               await sleep(AI_PAUSE_SHORT);
+                               continue;
+                           }
+                      } else if (spellToCast.data.type === 'field') {
+                           targetSlot = 'e-field'; 
+                           if (invocarCarta(spellToCast.name, 'Activate', targetSlot, true)) {
+                               cardsPlayedThisPhase = true;
+                               await sleep(AI_PAUSE_SHORT);
+                               continue;
+                           }
+                      } else if (spellToCast.data.subtype === 'Equipamento') {
+                          const availableSpellSlots = getAvailableSlots('spell', true);
+                          const monsterTargets = getFieldMonsters('e-s-').filter(sId => fieldState[sId]);
+                          if (availableSpellSlots.length > 0 && monsterTargets.length > 0) {
+                              targetSlot = availableSpellSlots[0];
+                              const monsterTarget = monsterTargets.sort((a,b) => calcularATK(b) - calcularATK(a))[0]; // Equipa no mais forte
+                              if (invocarCarta(spellToCast.name, 'Activate', targetSlot, true, monsterTarget)) {
+                                   cardsPlayedThisPhase = true;
+                                   await sleep(AI_PAUSE_SHORT);
+                                   continue;
+                              }
+                          }
+                      } else if (spellToCast.data.type === 'spell' && spellToCast.data.subtype === 'Contínua') {
+                           const availableSpellSlots = getAvailableSlots('spell', true);
+                           if (availableSpellSlots.length > 0) {
+                                targetSlot = availableSpellSlots[0];
+                                
+                                if (spellToCast.name === "MorangodoPoder.png") {
+                                    const plantTargets = getFieldMonsters('e-s-').filter(sId => fieldState[sId].subtype === 'Planta');
+                                    if (plantTargets.length > 0) {
+                                         if (invocarCarta(spellToCast.name, 'Activate', targetSlot, true, plantTargets[0])) {
+                                             cardsPlayedThisPhase = true;
+                                             await sleep(AI_PAUSE_SHORT);
+                                             continue;
+                                         }
+                                    }
+                                } else {
+                                     // Outras Contínuas (Casa Vazia, Cesta, Chuva de Pólen)
+                                     if (invocarCarta(spellToCast.name, 'Activate', targetSlot, true)) {
+                                          cardsPlayedThisPhase = true;
+                                          await sleep(AI_PAUSE_SHORT);
+                                          continue;
+                                     }
+                                }
+                           }
+                      }
+                 }
+            }
+
+
+            // 2. Fase de Combate
+            if (turnoAtual >= 2) {
+                 const attackingMonsters = getFieldMonsters('e-s-')
+                     .filter(sId => fieldState[sId].position === 'ATK' && !fieldState[sId].hasAttacked);
+                 
+                 const playerMonsters = getFieldMonsters('p-s-');
+
+                 for (const attackerSlot of attackingMonsters) {
+                     let attackerATK = calcularATK(attackerSlot);
+                     if (fieldState[attackerSlot].name === "AlfaceJusticeiro.png") attackerATK = calcularDEF(attackerSlot);
+                     
+                     let targetSlot = null;
+                     
+                     // Checa ataque direto
+                     const isDirectAttack = playerMonsters.length === 0;
+                     const totalPlants = getFieldMonsters('p-s-').concat(getFieldMonsters('e-s-')).filter(sId => fieldState[sId].subtype === 'Planta').length;
+                     const canArqueiraDirect = fieldState[attackerSlot].name === "ArqueiraMestre.png" && totalPlants >= 3;
+                     
+                     if (isDirectAttack || canArqueiraDirect) {
+                          executeDirectAttack(attackerSlot, true);
+                          await sleep(AI_PAUSE_LONG);
+                          continue;
+                     } 
+                     
+                     // Ataca o monstro mais fraco (que seja possível destruir)
+                     if (playerMonsters.length > 0) {
+                          const viableTargets = playerMonsters.filter(sId => {
+                              const targetState = fieldState[sId];
+                              const targetStat = targetState.position === 'ATK' ? calcularATK(sId) : calcularDEF(sId);
+                              return attackerATK >= targetStat; 
+                          });
+                          
+                          if (viableTargets.length > 0) {
+                               viableTargets.sort((a, b) => {
+                                   const aState = fieldState[a];
+                                   const bState = fieldState[b];
+                                   const aStat = aState.position === 'ATK' ? calcularATK(a) : calcularDEF(a);
+                                   const bStat = bState.position === 'ATK' ? calcularATK(b) : calcularDEF(b);
+                                   return aStat - bStat;
+                               });
+                               targetSlot = viableTargets[0];
+                          } else {
+                               continue;
+                          }
+                     }
+                     
+                     if (targetSlot) {
+                          executeCombat(attackerSlot, targetSlot);
+                          await sleep(AI_PAUSE_LONG);
+                     }
+                 }
+            }
+
+
+            // 3. Fim de Turno
+            displayGameAlert("Inimigo passa o turno.");
+            await sleep(AI_PAUSE_SHORT); 
+            
+            // Define que a AI terminou o processamento antes de iniciar o turno do jogador
+            isEnemyTurnInProgress = false; 
+            
+            passarTurno(); // Chama para iniciar o turno do jogador e atualiza o botão
+        }
+
+
+        // ----------------------- LÓGICA DE MENU E AÇÃO -----------------------
+
+        function startEquipmentTargeting(cardName, slotId) {
+            hideAllMenus();
+            targetingEquipment = true;
+            isCombatMode = true; // Bloqueia outras ações
+            
+            displayGameAlert(`Selecione o monstro para equipar ${cardName.replace(/\.[^/.]+$/, "").trim()}.`);
+
+            const monsterTargets = getFieldMonsters('p-s-');
+            
+            highlightTargetSlots(monsterTargets, (targetSlotId) => {
+                 invocarCarta(cardName, 'Activate', slotId, false, targetSlotId); 
+            });
+        }
+
+
+        function showHandActionMenu(cardName, cardElement) {
+            hideAllMenus();
+            selectedHandCard = cardName;
+            cardElement.classList.add('selected-card');
+
+            let menu = cardElement.querySelector('.card-action-menu');
+            if (!menu) {
+                menu = document.createElement('div');
+                menu.classList.add('card-action-menu');
+                cardElement.appendChild(menu); 
+            }
+            menu.innerHTML = ""; 
+            
+            const data = cardData[cardName];
+            const availableMonsterSlots = getAvailableSlots('monster', false);
+            const availableSpellSlots = getAvailableSlots('spell', false);
+            const availableFieldSlot = getAvailableSlots('field', false);
+
+            if (data.type === 'monster') {
+                const finalCost = (cardName === "BarataDomestica.png" && pvJogador < 4000) ? 0 : data.cost;
+                const canAfford = finalCost <= manaAtual;
+                const canSummon = monstersSummonedThisTurn < 1; 
+
+                if (cardName === "ChuchuVilao.png") {
+                    const tributeBtn = document.createElement('button');
+                    const isTributePossible = getFieldMonsters('p-s-').some(sId => fieldState[sId].subtype === 'Planta');
+                    tributeBtn.textContent = `Tributar (Custo ${finalCost})`; 
+                    tributeBtn.onclick = () => startTributeSelection(cardName);
+                    tributeBtn.disabled = !isTributePossible || availableMonsterSlots.length === 0 || !canAfford || !canSummon;
+                    menu.appendChild(tributeBtn);
+
+                } else {
+                    const atkBtn = document.createElement('button');
+                    atkBtn.textContent = "Invocar em ATK"; 
+                    // O clique inicia a seleção de slot
+                    atkBtn.onclick = () => highlightTargetSlots(availableMonsterSlots, (slotId) => invocarCarta(cardName, 'ATK', slotId, false));
+                    atkBtn.disabled = availableMonsterSlots.length === 0 || !canAfford || !canSummon;
+                    menu.appendChild(atkBtn);
+                    
+                    const defBtn = document.createElement('button');
+                    defBtn.textContent = "Invocar em DEF"; 
+                    // O clique inicia a seleção de slot
+                    defBtn.onclick = () => highlightTargetSlots(availableMonsterSlots, (slotId) => invocarCarta(cardName, 'DEF', slotId, false));
+                    defBtn.disabled = availableMonsterSlots.length === 0 || !canAfford || !canSummon;
+                    menu.appendChild(defBtn);
+                }
+            } else if (data.type === 'spell' || data.type === 'field') {
+                 const canAfford = data.cost <= manaAtual;
+                 
+                 const activateBtn = document.createElement('button');
+                 activateBtn.textContent = `Ativar (Custo ${data.cost})`; 
+                 activateBtn.disabled = !canAfford;
+                 
+                 const isInstantSpell = INSTANT_SPELLS.includes(cardName);
+                 const isFieldCard = data.type === 'field';
+                 const isEquipment = data.subtype === 'Equipamento';
+                 const isTargetedSpell = cardName === "MorangodoPoder.png";
+                 
+                 if (isInstantSpell) {
+                      activateBtn.onclick = () => {
+                          invocarCarta(cardName, 'Activate', 'p-m-1', false); 
+                      }
+                 } else if (isFieldCard) {
+                      activateBtn.onclick = () => {
+                           invocarCarta(cardName, 'Activate', 'z-field', false);
+                      };
+                 } else if (isEquipment) {
+                      const monsterTargets = getFieldMonsters('p-s-');
+                      activateBtn.onclick = () => highlightTargetSlots(availableSpellSlots, (spellSlotId) => startEquipmentTargeting(cardName, spellSlotId));
+                      activateBtn.disabled = !canAfford || availableSpellSlots.length === 0 || monsterTargets.length === 0;
+                 } else if (isTargetedSpell) {
+                      const plantTargets = getFieldMonsters('p-s-').filter(sId => fieldState[sId].subtype === 'Planta');
+                      activateBtn.onclick = () => highlightTargetSlots(availableSpellSlots, (spellSlotId) => {
+                            // Após selecionar o slot da Magia, pede o alvo monstro
+                           displayGameAlert("Selecione um monstro Planta seu para o Morango do Poder (+1000 ATK).");
+                           highlightTargetSlots(plantTargets, (monsterTargetId) => {
+                                invocarCarta(cardName, 'Activate', spellSlotId, false, monsterTargetId);
+                           });
+                      });
+                      activateBtn.disabled = !canAfford || availableSpellSlots.length === 0 || plantTargets.length === 0;
+                 } else {
+                      // Magias Contínuas normais
+                      activateBtn.onclick = () => highlightTargetSlots(availableSpellSlots, (slotId) => invocarCarta(cardName, 'Activate', slotId, false));
+                      activateBtn.disabled = !canAfford || availableSpellSlots.length === 0;
+                 }
+                 
+                 menu.appendChild(activateBtn);
+            }
+
+            menu.classList.add('visible');
+        }
+
+        function showMonsterActionMenu(slotId, q) {
+            hideAllMenus();
+            selectedMonsterSlot = slotId;
+            q.classList.add('selected-card');
+            
+            const state = fieldState[slotId];
+            
+            let menu = q.querySelector('.card-action-menu');
+            if (!menu) {
+                menu = document.createElement('div');
+                menu.classList.add('card-action-menu');
+                q.appendChild(menu); 
+            }
+            menu.innerHTML = "";
+            
+            const currentPos = state.position || 'ATK'; 
+            
+            // 1. Botão de Ataque
+            const atkBtn = document.createElement('button');
+            atkBtn.textContent = "Atacar";
+            atkBtn.onclick = () => enterCombatMode(slotId);
+            atkBtn.disabled = state.hasAttacked || state.position !== 'ATK';
+            menu.appendChild(atkBtn);
+            
+            // 2. Botão de Posição
+            const newPos = currentPos === 'ATK' ? 'DEF' : 'ATK';
+            const positionBtn = document.createElement('button');
+            positionBtn.textContent = `Mudar para ${newPos}`; 
+            positionBtn.onclick = () => changeMonsterPosition(slotId, newPos);
+            positionBtn.disabled = !state.canChangePosition || state.hasPositionChanged || state.hasAttacked; 
+            menu.appendChild(positionBtn);
+            
+            menu.classList.add('visible');
+        }
+
+        function startTributeSelection(cardName) {
+            hideAllMenus();
+            isCombatMode = true;
+            tributeSlotForChuchu = null;
+
+            displayGameAlert("Selecione um Monstro Planta seu para Tributar (para Chuchu Vilão).");
+
+            const tributeTargets = getFieldMonsters('p-s-').filter(sId => fieldState[sId].subtype === 'Planta');
+            
+            tributeTargets.forEach(slotId => {
+                const q = document.querySelector(`.quadrante[data-slot="${slotId}"]`);
+                if (q) {
+                    q.classList.add('selected-card');
+                    // Usa 'click' para funcionar com toque
+                    q.onclick = (e) => {
+                        e.stopPropagation();
+                        exitCombatMode(); 
+                        tributeSlotForChuchu = slotId;
+                        invocarCarta(cardName, 'ATK', slotId, false); 
+                    };
+                }
+            });
+            
+            document.body.addEventListener('click', cancelTargetSelectionOnClick);
+        }
+        
+        // ----------------------- EVENTOS (CLIQUE NO CAMPO) -----------------------
+
+        quadrantes.forEach(q => {
+            q.addEventListener("click", (e) => {
+                e.stopPropagation(); 
+                
+                const slotId = q.dataset.slot;
+                
+                if (!isPlayerTurn || isEnemyTurnInProgress) { 
+                    hideAllMenus(); 
+                    return; 
+                }
+                
+                if (isCombatMode) return; 
+
+                const state = fieldState[slotId];
+                const isMyCard = state && !slotId.startsWith('e-');
+
+                if (isMyCard && state.type === 'monster') {
+                    if (selectedMonsterSlot === slotId && q.querySelector('.card-action-menu.visible')) {
+                        hideAllMenus();
+                    } else {
+                        showMonsterActionMenu(slotId, q);
+                    }
+                } else {
+                    hideAllMenus(); 
+                }
+            });
+            
+            q.addEventListener("dragover", (e) => { e.preventDefault(); });
+            q.addEventListener("dragleave", (e) => { /* ignora */ });
+            q.addEventListener("drop", (e) => { e.preventDefault(); });
+        });
+        
+        // Adiciona um listener genérico no body para fechar menus ao clicar fora
+        document.body.addEventListener('click', (e) => {
+             if (!e.target.closest('.card-action-menu') && !e.target.closest('#maoJogador .card') && !e.target.closest('.quadrante') && !isCombatMode) {
+                 hideAllMenus();
+             }
+        });
+
+
+        // ----------------------- HOTKEYS (TECLAS DE ATALHO) -----------------------
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'p' || e.key === 'P') {
+                e.preventDefault();
+                
+                if (turnoAtual === 0) {
+                     // **CORREÇÃO: CHAMA startGame() SE O JOGO AINDA NÃO COMEÇOU**
+                     startGame(); 
+                }
+                // Garante que o atalho 'P' funcione para passar o turno depois
+                else if (isPlayerTurn && !isEnemyTurnInProgress && !isCombatMode) {
+                     passarTurno();
+                }
+            } else if (e.key === 'd' || e.key === 'D') {
+                e.preventDefault();
+                if (isPlayerTurn && !isEnemyTurnInProgress && !isCombatMode) {
+                    comprarCartas(1);
+                } else if (!isCombatMode) {
+                     displayGameAlert("Não é o seu turno para comprar cartas.");
+                }
+            }
+        });
+
+
+        // ----------------------- INICIALIZAÇÃO -----------------------
+        function initializeGame() {
+            // Preenche os decks (40 cartas cada, clonando as 20 que existem)
+            const initialCards = allCards.sort(() => 0.5 - Math.random());
+            for (let i = 0; i < 40; i++) {
+                 deckCartas.push(initialCards[i % initialCards.length]);
+                 deckInimigo.push(initialCards[(i + 1) % initialCards.length]);
+            }
+
+            shuffleDeck(deckCartas);
+            shuffleDeck(deckInimigo);
+            
+            desenharDeck(); 
+            desenharDeckInimigo(); 
+            desenharCemiterio(); 
+            desenharCemiterioInimigo(); 
+            atualizarStatusUI();
+            
+            // O jogo está no Turno 0 e aguarda o clique/tecla 'P'
+        }
+
+        initializeGame();
+    </script>
+</body>
+</html>
