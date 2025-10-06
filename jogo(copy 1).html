@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Campo de Duelo - 1 Jogador</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    height: 100%;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: auto;
+    background: #1c1c2e;
+  }
+
+  .campo {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 20px;
+  }
+
+  .linha {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-start;
+  }
+
+  .quadrante {
+    width: 8cm;
+    height: 11cm;
+    background: #2e2eb0;
+    border: 2px solid #88ffff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+    cursor: pointer;
+    font-size: 3em; /* aumenta tamanho do ícone */
+    color: #fff;
+    text-align: center;
+    padding: 5px;
+  }
+
+  .quadrante:hover {
+    box-shadow: 0 0 20px #a0ffff;
+    border-color: #a0ffff;
+    transform: scale(1.05);
+  }
+</style>
+</head>
+<body>
+
+<div class="campo">
+  <div class="linha cima">
+    <div class="quadrante">➕</div>
+    <div class="quadrante">🗡️</div>
+    <div class="quadrante">🗡️</div>
+    <div class="quadrante">🗡️</div>
+    <div class="quadrante">🗡️</div>
+    <div class="quadrante">🗡️</div>
+    <div class="quadrante">⚰️</div>
+    <div class="quadrante">🚫</div>
+  </div>
+
+  <div class="linha baixo">
+    <div class="quadrante">🔗</div>
+    <div class="quadrante">✨</div>
+    <div class="quadrante">✨</div>
+    <div class="quadrante">✨</div>
+    <div class="quadrante">✨</div>
+    <div class="quadrante">✨</div>
+    <div class="quadrante">📚</div>
+  </div>
+</div>
+
+</body>
+</html>
